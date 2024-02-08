@@ -6,7 +6,7 @@ from langchain_core.language_models import LLM
 from pydantic import BaseModel, Extra
 
 
-class _BaseAliceEmbedding(BaseModel, Embeddings):
+class AliceEmbedding(BaseModel, Embeddings):
     """AliceLLMEmbedding"""
 
     model: Any
@@ -14,19 +14,13 @@ class _BaseAliceEmbedding(BaseModel, Embeddings):
 
     encode_kwargs: Dict[str, Any] = {}
 
-    @classmethod
-    def load(
-            cls,
-            model: LLM,
-            tokenizer: Any,
-            **kwargs: Any,
-    ):
+    def __init__(self, model, tokenizer, **encode_kwargs):
+        super().__init__()
+        self.model = model
+        self.tokenizer = tokenizer
 
-        return cls(
-            model=model,
-            tokenizer=tokenizer,
-            **kwargs,
-        )
+        self.encode_kwargs = encode_kwargs
+
 
     class Config:
         extra = Extra.forbid
@@ -62,11 +56,3 @@ class _BaseAliceEmbedding(BaseModel, Embeddings):
         text = text.replace("\n", r" ")
         embedding = self.embed(text, **self.encode_kwargs)
         return embedding.tolist()
-
-
-def AliceEmbedding(
-        model: LLM,
-        tokenizer: Any,
-        **kwargs: Any,
-) -> Any:
-    return _BaseAliceEmbedding.load(model, tokenizer, **kwargs)

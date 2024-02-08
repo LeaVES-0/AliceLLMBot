@@ -1,8 +1,6 @@
 import os
 from logging import Logger, getLogger
 from typing import Any, Optional, List, Dict, Generator
-
-import numpy as np
 from bigdl.llm.models import Llama
 from langchain_core.callbacks import CallbackManagerForLLMRun
 from langchain_core.language_models import LLM
@@ -12,14 +10,25 @@ from pydantic import root_validator
 class AliceLLM(LLM):
     os.environ['NUMEXPR_MAX_THREADS'] = '12'
 
-    client: Any  # :meta private:
-
+    model: Any
     model_path: str
     model_kwargs: Optional[dict] = None
-    kwargs: Any
 
     logger: Logger = getLogger()
 
+    # model keyword arguments
+    suffix: Optional[str] = None
+    max_tokens: Optional[int] = 1024
+    temperature: Optional[float] = 0.8
+    top_p: Optional[float] = 0.95
+    logprobs: Optional[int] = None
+    echo: Optional[bool] = False
+    stop: Optional[List[str]] = []
+    repeat_penalty: Optional[float] = 1.1
+    top_k: Optional[int] = 40
+    streaming: bool = True
+
+    # llm keyword arguments
     lora_base: Optional[str] = None
     lora_path: Optional[str] = None
     n_ctx: int = 2048
@@ -32,25 +41,13 @@ class AliceLLM(LLM):
     n_threads: Optional[int] = 8
     n_batch: Optional[int] = 512
     n_gpu_layers: Optional[int] = 0
-    suffix: Optional[str] = None
-    max_tokens: Optional[int] = 1024
-    temperature: Optional[float] = 0.8
-    top_p: Optional[float] = 0.95
-    logprobs: Optional[int] = None
-    echo: Optional[bool] = False
-    stop: Optional[List[str]] = []
-    repeat_penalty: Optional[float] = 1.1
-    top_k: Optional[int] = 40
     last_n_tokens_size: Optional[int] = 64
     use_mmap: Optional[bool] = True
-
-    streaming: bool = True
 
     @root_validator()
     def init(cls, values: Dict) -> Dict:
         model_path = values["model_path"]
         model_kwargs = values["model_kwargs"]
-        kwargs = values["kwargs"]
         logger = values["logger"]
         model_param_names = [
             "lora_path",
@@ -67,13 +64,15 @@ class AliceLLM(LLM):
             "use_mmap",
             "last_n_tokens_size",
         ]
-        model_params = {k: values[k] for k in model_param_names}
-        # For backwards compatibility, only include if non-null.
-        if values["n_gpu_layers"] is not None:
-            model_params["n_gpu_layers"] = values["n_gpu_layers"]
+        for k, v in values.items():
+            if k in model_param_names:
+                model_kwargs[k] = v
+
+        if not values.get("n_gpu_layers", None):
+            del values["n_gpu_layers"]
 
         try:
-            values["client"] = Llama(model_path, **model_params)
+            values["model"] = Llama(model_path, **model_kwargs)
 
         except Exception as e:
             raise e
@@ -108,7 +107,6 @@ class AliceLLM(LLM):
 
         params = self._default_params
 
-        print(params)
         # llama_cpp expects the "stop" key not this, so we remove it:
         try:
             params.pop("stop_sequences")
@@ -134,7 +132,7 @@ class AliceLLM(LLM):
             return combined_text_output
         else:
             params = self._get_parameters(stop)
-            result = self.client(prompt=prompt, **params)
+            result = self.model(prompt=prompt, **params)
             return result["choices"][0]["text"]
 
     def stream_(
@@ -145,7 +143,7 @@ class AliceLLM(LLM):
     ) -> Generator[Dict, None, None]:
 
         params = self._get_parameters(stop)
-        result = self.client(prompt=prompt, stream=True, **params)
+        result = self.model(prompt=prompt, stream=True, **params)
         for chunk in result:
             token = chunk["choices"][0]["text"]
             log_probs = chunk["choices"][0].get("logprobs", None)
@@ -158,4 +156,4 @@ class AliceLLM(LLM):
             yield chunk
 
     def get_num_tokens(self, text: str) -> int:
-        return len(self.client.tokenize(text.encode("utf-8")))
+        return len(self.model.tokenize(text.encode("utf-8")))
