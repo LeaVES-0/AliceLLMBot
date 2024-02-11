@@ -268,7 +268,7 @@ class AliceLLMAI:
             return self.current_chain.invoke(input_, config_, **kwargs)["response"]
 
 
-if __name__ == "__main__":
+def example():
     alice = AliceLLMAI(debug=False)
     alice.mode("chat")
     while True:
@@ -290,3 +290,6 @@ if __name__ == "__main__":
             continue
         result = alice.invoke({"input": query})
         # print(result)
+
+if __name__ == "__main__":
+    example()
