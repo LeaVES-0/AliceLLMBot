@@ -5,10 +5,10 @@ import sys
 import time
 from typing import Any, Union
 from pathlib import Path
-
 from bigdl.llm import llm_convert
 from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 from langchain.chains import ConversationChain, LLMMathChain, load_chain
+from langchain.memory import ConversationSummaryMemory, ConversationBufferMemory
 from langchain.chains.base import Chain
 from langchain.prompts import PromptTemplate
 from langchain.text_splitter import CharacterTextSplitter
@@ -26,26 +26,31 @@ from util.chain import AliceConversationChain
 
 
 class AliceLLMAI:
-    original_text_model_path: Union[str, Path] = "./original_text_model"
+    original_text_model_path: Union[str, Path] = "../original_text_model"
     original_vision_model_path: Union[str, Path] = "./original_vision_model"
-    default_text_model_path: Union[str, Path] = r"./models/text_model"
+    default_text_model_path: Union[str, Path] = r"../models/text_model"
     default_vision_model_path: Union[str, Path] = r"./models/vision_model"
-    temp_path: Union[str, Path] = "./temp"
+    temp_path: Union[str, Path] = "../temp"
     data_file: Union[str, Path] = ""
 
     config_file_path: Union[str, Path] = "./config/config.json"
 
     human_prefix: str = "Human"
-    ai_prefix: str = "AI"
+    ai_prefix: str = "Alice"
 
     n_thread: int = 12
 
     prompt_template: str = (
         "[INST] <<SYS>>\n"
-        "You are a helpful assistant. 你是一个乐于助人的助手。\n"
-        "Today's date: {date}\n"
-        "Time: {time}\n"
+        "Your are a helpful android. 你是一个乐于助人的仿生人。\n"
+        "Your are an android named 'Tendon Arisu'. Your need to meet others' request as best as you can. \n"
+        "When ask your name, you must respond with 'Tendon Alice' or 'Alice'. \n"
+        "You now today's date.\n"
         "<</SYS>>\n\n"
+        "{human_prefix}: 你叫什么名字 \n"
+        "{ai_prefix}: 我的名字是Tendon Alice。请问有什么Alice可以帮助您的吗？ \n"
+        "{human_prefix}: 今天是{date}。 \n"
+        "{ai_prefix}: 今天是{date}。 \n"
         "{memory}\n"
         "{human_prefix}: {input}\n"
         "{ai_prefix}: [/INST]"
@@ -53,6 +58,8 @@ class AliceLLMAI:
 
     text_model_llm: LLM
     vision_model_llm: Any
+
+    int_l: str = "8"
 
     current_chain: Chain
     __conversation_chain: ConversationChain
@@ -64,7 +71,7 @@ class AliceLLMAI:
         bigdl_llm_path = llm_convert(
             model=model_path,
             outfile=self.default_text_model_path,
-            outtype='int4',
+            outtype=f'int{self.int_l}',
             tmp_path=self.temp_path,
             model_family="llama")
         self.logger.info(f"{'=' * 40}\nSuccessfully transformed the model to native format!")
@@ -95,15 +102,15 @@ class AliceLLMAI:
         self.text_vector_store = self.init_vector_database()
 
         # Initiate prompt
-        input_variables = ["date", "time", "memory", "input"]
+        input_variables = ["memory", "input", "date"]
         try:
-            with open("models/text_model/prompt.txt", encoding="utf-8", mode="r") as f:
+            with open("../models/text_model/prompt.txt", encoding="utf-8", mode="r") as f:
                 prompt_template = f.read()
                 if not prompt_template:
                     raise FileExistsError
         except (FileNotFoundError, FileExistsError, UnicodeError):
             prompt_template = self.prompt_template
-            with open("models/text_model/prompt.txt", encoding="utf-8", mode="w") as f:
+            with open("../models/text_model/prompt.txt", encoding="utf-8", mode="w") as f:
                 f.write(self.prompt_template)
         prompt_template = \
             (prompt_template.replace("{human_prefix}", kwargs.get("human_prefix", "Human"))
@@ -112,11 +119,13 @@ class AliceLLMAI:
 
         # Initiate memory
         memory = ExtendedConversationBufferMemory(
+            k=10,
             memory_key="memory",
             input_key="input",
-            extra_variables=["date", "time"],
+            extra_variables=['date'],
             human_prefix=self.human_prefix,
-            ai_prefix=self.ai_prefix
+            ai_prefix=self.ai_prefix,
+            summarize_step=2
         )
 
         # Initiate chains
@@ -148,7 +157,6 @@ class AliceLLMAI:
                     n_threads=self.n_thread,
                     n_ctx=2048),
                 callback_manager=CallbackManager([StreamingStdOutCallbackHandler()]),
-                native=True,
                 verbose=self.is_debug,
                 tempareture=0.8
             )
@@ -170,22 +178,27 @@ class AliceLLMAI:
             if os.path.exists(self.config_file_path) and _jump != 2:
                 _k = "text_model_path"
                 try:
-                    with open(self.config_file_path, mode="r", encoding="utf-8") as f:
-                        path = json.loads(f.read())[_k]
+                    config_file = Path(self.config_file_path)
+                    if content := config_file.read_text():
+                        path = json.loads(content)[_k]
+                    else:
+                        path = self.default_text_model_path
+                        raise json.decoder.JSONDecodeError
                 except KeyError:
                     self.logger.warning(
                         f"Failed to initiate model, because parameter'{_k}' was missed in the config file.")
                 except json.decoder.JSONDecodeError:
                     self.logger.warning("Failed to load config file. Using default value.")
-                text_model_llm, text_embedding = init_model(path)
+                text_model_llm, text_embedding = init_model(path + f"/bigdl_llm_llama_q{self.int_l}_0.bin")
 
             elif os.path.exists(self.default_text_model_path) and _jump != 3:
                 try:
-                    text_model_llm, text_embedding = init_model(self.default_text_model_path)
-                except Exception:
+                    text_model_llm, text_embedding = init_model(
+                        self.default_text_model_path + f"/bigdl_llm_llama_q{self.int_l}_0.bin")
+                except Exception as e:
+                    self.logger.warning(f"""Failed to initiate text models from default path but original models is exist.
+                    Retrying to load from original models...({e})""")
                     text_model_llm, text_embedding = self.init_text_model(path, 3)
-                    self.logger.warning("""Failed to initiate text model from default path but original model is exist.
-                    Retrying to load from original model...""")
 
             elif os.path.exists(self.original_text_model_path) and _jump != 4:
                 if not os.path.exists(self.default_text_model_path):
@@ -194,11 +207,11 @@ class AliceLLMAI:
                 _tokenizer.save_pretrained(self.default_text_model_path)
                 path = self.convert_text_model(self.original_text_model_path)
                 _to_write = {"text_model_path": path}
-                with open(self.config_file_path, mode="w+") as f:
-                    if content := f.read():
-                        content = json.loads(content)
-                        _to_write.update(content)
-                    f.write(json.dumps(_to_write))
+                config_file = Path(self.config_file_path)
+                if config_file.exists():
+                    content = json.loads(config_file.read_text())
+                    _to_write.update(content)
+                    config_file.write_text(json.dumps(_to_write))
                 text_model_llm, text_embedding = init_model(path)
                 self.logger.info("Deleting temp file...")
                 try:
@@ -244,15 +257,19 @@ class AliceLLMAI:
 
     def invoke(self, input_: dict[str, Any],
                config_: RunnableConfig | None = None,
+               complete: bool = False,
                **kwargs: Any) -> dict[str, Any]:
 
-        in_ = {"date": time.strftime("%Y/%m/%d"), "time": time.strftime("%H hours,%M minutes")}
-        in_.update(input_)
-        return self.current_chain.invoke(in_, config_, **kwargs)
+        in_ = {"date": time.strftime("%Y年%m月%d日")}
+        input_.update(in_)
+        if complete:
+            return self.current_chain.invoke(input_, config_, **kwargs)
+        else:
+            return self.current_chain.invoke(input_, config_, **kwargs)["response"]
 
 
 if __name__ == "__main__":
-    alice = AliceLLMAI(debug=True)
+    alice = AliceLLMAI(debug=False)
     alice.mode("chat")
     while True:
         try:
@@ -272,3 +289,4 @@ if __name__ == "__main__":
                     chain = alice.mode("chat")
             continue
         result = alice.invoke({"input": query})
+        # print(result)

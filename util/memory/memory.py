@@ -1,11 +1,15 @@
 from pathlib import Path
 from typing import List, Dict, Any, Union
 
-from langchain.memory import ConversationBufferMemory
+from langchain.memory import ConversationSummaryMemory, ConversationBufferMemory, ConversationBufferWindowMemory
+from langchain_core.chat_history import BaseChatMessageHistory
+from langchain_core.language_models import BaseLanguageModel
+from langchain_core.messages import get_buffer_string, BaseMessage
 
 
-class ExtendedConversationBufferMemory(ConversationBufferMemory):
-    extra_variables: List[str] = []
+class ExtendedConversationBufferMemory(ConversationBufferWindowMemory):
+
+    extra_variables: List = None
 
     @property
     def memory_variables(self) -> List[str]:

@@ -26,7 +26,7 @@ class AliceEmbedding(BaseModel, Embeddings):
         extra = Extra.forbid
 
     def embed(self, texts: str, **_):
-        """Compute doc embeddings using a HuggingFace transformer model.
+        """Compute doc embeddings using a HuggingFace transformer models.
         :param texts: The list of texts to embed.
         :return st of embeddings, one for each text.
         """
@@ -37,7 +37,7 @@ class AliceEmbedding(BaseModel, Embeddings):
         return embeddings
 
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
-        """Compute doc embeddings using a HuggingFace transformer model.
+        """Compute doc embeddings using a HuggingFace transformer models.
         :param texts: The list of texts to embed.
         :return List of embeddings.
         """
@@ -49,7 +49,7 @@ class AliceEmbedding(BaseModel, Embeddings):
         return embeddings
 
     def embed_query(self, text: str) -> List[float]:
-        """Compute query embeddings using a bigdl-llm transformer model.
+        """Compute query embeddings using a bigdl-llm transformer models.
         :param text: The text to embed.
         :return Embeddings for the text.
         """

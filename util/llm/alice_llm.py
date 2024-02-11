@@ -1,6 +1,7 @@
 import os
 from logging import Logger, getLogger
 from typing import Any, Optional, List, Dict, Generator
+
 from bigdl.llm.models import Llama
 from langchain_core.callbacks import CallbackManagerForLLMRun
 from langchain_core.language_models import LLM

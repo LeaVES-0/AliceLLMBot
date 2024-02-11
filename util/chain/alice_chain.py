@@ -7,5 +7,5 @@ from langchain.chains import ConversationChain
 class AliceConversationChain(ConversationChain):
     save_path: str = "./data/memory/"
 
-    def __del__(self):
-        self.save(self.save_path)
+    # def __del__(self):
+    #     self.save(self.save_path)
