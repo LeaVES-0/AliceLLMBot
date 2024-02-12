@@ -50,9 +50,9 @@ class AliceApiServerBase(ABC):
         """
         key = request.match_info.get("key", None)
         if not key:
-            self.set_response(40)
+            return self.set_response(40)
         elif key not in self.api_key():
-            self.set_response(41)
+            return self.set_response(41)
         try:
             data = json.loads(await request.content.read())
         except json.JSONDecodeError:
