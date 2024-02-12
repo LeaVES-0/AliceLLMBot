@@ -26,11 +26,11 @@ from util.chain import AliceConversationChain
 
 
 class AliceLLMAI:
-    original_text_model_path: Union[str, Path] = "../original_text_model"
+    original_text_model_path: Union[str, Path] = "./original_text_model"
     original_vision_model_path: Union[str, Path] = "./original_vision_model"
-    default_text_model_path: Union[str, Path] = r"../models/text_model"
+    default_text_model_path: Union[str, Path] = r"./models/text_model"
     default_vision_model_path: Union[str, Path] = r"./models/vision_model"
-    temp_path: Union[str, Path] = "../temp"
+    temp_path: Union[str, Path] = "./temp"
     data_file: Union[str, Path] = ""
 
     config_file_path: Union[str, Path] = "./config/config.json"
@@ -104,13 +104,13 @@ class AliceLLMAI:
         # Initiate prompt
         input_variables = ["memory", "input", "date"]
         try:
-            with open("../models/text_model/prompt.txt", encoding="utf-8", mode="r") as f:
+            with open("./models/text_model/prompt.txt", encoding="utf-8", mode="r") as f:
                 prompt_template = f.read()
                 if not prompt_template:
                     raise FileExistsError
         except (FileNotFoundError, FileExistsError, UnicodeError):
             prompt_template = self.prompt_template
-            with open("../models/text_model/prompt.txt", encoding="utf-8", mode="w") as f:
+            with open("./models/text_model/prompt.txt", encoding="utf-8", mode="w") as f:
                 f.write(self.prompt_template)
         prompt_template = \
             (prompt_template.replace("{human_prefix}", kwargs.get("human_prefix", "Human"))
