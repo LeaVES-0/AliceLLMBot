@@ -18,7 +18,7 @@ from langchain_core.callbacks import CallbackManager
 from langchain_core.language_models import LLM
 from langchain_core.runnables import RunnableConfig
 from langchain.chains.question_answering import load_qa_chain
-from transformers import AutoTokenizer, LlamaTokenizer
+from transformers import AutoTokenizer
 
 from util.llm import AliceEmbedding, AliceLLM
 from util.memory import ExtendedConversationBufferMemory
@@ -26,14 +26,14 @@ from util.chain import AliceConversationChain
 
 
 class AliceLLMAI:
-    original_text_model_path: Union[str, Path] = "./original_text_model"
-    original_vision_model_path: Union[str, Path] = "./original_vision_model"
+    original_text_model_path: Union[str, Path] = r"./original_text_model"
+    original_vision_model_path: Union[str, Path] = r"./original_vision_model"
     default_text_model_path: Union[str, Path] = r"./models/text_model"
     default_vision_model_path: Union[str, Path] = r"./models/vision_model"
     temp_path: Union[str, Path] = "./temp"
     data_file: Union[str, Path] = ""
 
-    config_file_path: Union[str, Path] = "./config/config.json"
+    config_file_path: Union[str, Path] = r"./config/config.json"
 
     human_prefix: str = "Human"
     ai_prefix: str = "Alice"
@@ -59,7 +59,7 @@ class AliceLLMAI:
     text_model_llm: LLM
     vision_model_llm: Any
 
-    int_l: str = "8"
+    int_l: str = "4"
 
     current_chain: Chain
     __conversation_chain: ConversationChain
@@ -150,7 +150,7 @@ class AliceLLMAI:
 
     def init_text_model(self, path, _jump: int = 0) -> tuple[LLM, Any]:
         def init_model(path_):
-            self.logger.info(f"Loading text model from '{path}'")
+            self.logger.info(f"Loading text model from '{path_}'")
             model = AliceLLM(
                 model_path=path_,
                 logger=self.logger,
@@ -204,7 +204,12 @@ class AliceLLMAI:
             elif os.path.exists(self.original_text_model_path) and _jump != 4:
                 if not os.path.exists(self.default_text_model_path):
                     os.mkdir(self.default_text_model_path)
-                _tokenizer = LlamaTokenizer.from_pretrained(self.original_text_model_path, trust_remote_code=True)
+                _tokenizer = AutoTokenizer.from_pretrained(
+                    self.original_text_model_path,
+                    trust_remote_code=True,
+                    legacy=True,
+                    use_fast=False
+                )
                 _tokenizer.save_pretrained(self.default_text_model_path)
                 path = self.convert_text_model(self.original_text_model_path)
                 _to_write = {"text_model_path": path}

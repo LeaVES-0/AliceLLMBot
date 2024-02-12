@@ -3,7 +3,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import List, Dict
 from functools import cache
-from llm_inference import AliceLLMAI
+from core.llm_inference import AliceLLMAI
 from util.api_server.api_server import AliceApiServerBase
 
 

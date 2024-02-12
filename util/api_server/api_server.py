@@ -1,6 +1,7 @@
 import json
 import time
 from abc import ABC, abstractmethod
+import socket
 from typing import Dict, List
 
 from aiohttp import web
@@ -17,7 +18,6 @@ class AliceApiServerBase(ABC):
             "api_version": 1.0,
             "output": dict(),
             "trace_id": "",
-            "timestamp": float(),
             "info": {"code": int(),
                      "msg": ""}
         }
@@ -25,17 +25,17 @@ class AliceApiServerBase(ABC):
 
     @abstractmethod
     def api_key(self) -> List:
-        ...
+        pass
 
-    def __init__(self, address=('127.0.0.1', 18080)):
+    def __init__(self, address=('0.0.0.0', '0:0:0:0:0:0:0:0', 18080)):
         self.n_process = 0
         self.app = web.Application()
         self.app.add_routes(
             [
-                web.get("/", self.http_handle),  # curl http://localhost:8080/
-                web.get("/{key}", self.http_handle),  # curl http://localhost:8080/
-                web.post("/", self.http_handle),  # curl http://localhost:8080/
-                web.post("/{key}", self.http_handle),  # curl http://localhost:8080/
+                web.get("/", self.http_handle),
+                web.get("/{key}", self.http_handle),
+                web.post("/", self.http_handle),
+                web.post("/{key}", self.http_handle),
             ]
         )
         self.address = address
@@ -103,8 +103,15 @@ class AliceApiServerBase(ABC):
             return response
 
     def run(self, loop=None):
-        host, port = self.address
-        web.run_app(self.app, host=host, port=port, loop=loop)
+        host, host6, port = self.address
+        ipv6_socket = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
+        ipv4_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        ipv6_socket.bind((host6, port))
+        ipv4_socket.bind((host, port))
+        ipv4_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        ipv6_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
+        web.run_app(self.app, sock=(ipv4_socket, ipv6_socket), loop=loop)
 
 
 class AliceApiServerTest(AliceApiServerBase):
