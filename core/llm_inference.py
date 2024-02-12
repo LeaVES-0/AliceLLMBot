@@ -156,7 +156,7 @@ class AliceLLMAI:
                 logger=self.logger,
                 model_kwargs=dict(
                     n_threads=self.n_thread,
-                    n_ctx=2048),
+                    n_ctx=8292),
                 callback_manager=CallbackManager([StreamingStdOutCallbackHandler()]),
                 verbose=self.is_debug,
                 tempareture=0.8
