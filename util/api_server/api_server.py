@@ -1,7 +1,7 @@
 import json
 import time
 from abc import ABC, abstractmethod
-from typing import Dict
+from typing import Dict, List
 
 from aiohttp import web
 from aiohttp.web_request import Request
@@ -9,69 +9,110 @@ from aiohttp.web_response import Response
 
 
 class AliceApiServerBase(ABC):
-    response_body = {
-        "api_version": 1.0,
-        "output": dict(),
-        "trace_id": "",
-        "timestamp": float(),
-        "error": ""
-    }
+    limit: int = 1
+
+    @property
+    def response_body(self):
+        response_body = {
+            "api_version": 1.0,
+            "output": dict(),
+            "trace_id": "",
+            "timestamp": float(),
+            "info": {"code": int(),
+                     "msg": ""}
+        }
+        return response_body
 
     @abstractmethod
-    def api_key(self):
+    def api_key(self) -> List:
         ...
 
     def __init__(self, address=('127.0.0.1', 18080)):
+        self.n_process = 0
         self.app = web.Application()
         self.app.add_routes(
             [
                 web.get("/", self.http_handle),  # curl http://localhost:8080/
                 web.get("/{key}", self.http_handle),  # curl http://localhost:8080/
+                web.post("/", self.http_handle),  # curl http://localhost:8080/
+                web.post("/{key}", self.http_handle),  # curl http://localhost:8080/
             ]
         )
         self.address = address
 
     @abstractmethod
-    def get_api_message(self, user_input) -> Dict:
-        ...
+    async def get_api_message(self, user_input: Dict) -> Dict:
+        pass
 
     async def http_handle(self, request: Request | None = None) -> Response:
         """
         HTTP 请求处理器
         """
-        # web.get("/{name}", ...) 中的 name
-        key = request.match_info.get("key")
+        key = request.match_info.get("key", None)
         if not key:
-            self.response_body['error'] = "Please provide an apikey. (Format: [HOST]/[API_KEY])"
-        elif key != self.api_key:
-            self.response_body['error'] = "Apikey was incorrect."
+            self.set_response(40)
+        elif key not in self.api_key():
+            self.set_response(41)
+        try:
+            data = json.loads(await request.content.read())
+        except json.JSONDecodeError:
+            return self.set_response(42)
+
+        if self.n_process >= self.limit:
+            return self.set_response(20)
+
+        try:
+            match data:
+                case {"input": input_dict, "trace_id": trace_id, **kw}:
+                    self.n_process += 1
+                    result = await self.get_api_message(input_dict)
+                    self.n_process -= 1
+                    return self.set_response(0, output=result, trace_id=trace_id)
+                case _:
+                    return self.set_response(42)
+        except Exception as e:
+            return self.set_response(50, msg=e)
+
+    def set_response(self, code, transform: bool = True, **kwargs) -> Dict | web.Response:
+        response = self.response_body
+        msg_map = {
+            0: "Successful!",
+            40: "Please provide an apikey. (Format: [HOST]/[API_KEY])",
+            41: "Apikey was incorrect.",
+            42: "The format of the request was incorrect.",
+            50: "An unexpected error occurred, please try again.",
+            20: "Server is busy at this time."
+        }
+        if code not in msg_map.keys():
+            raise ValueError
+        msg = msg_map[code]
+        response["info"]['msg'] = msg
+        response["info"]["code"] = code
+        response["timestamp"] = time.time()
+        if code != 0:
+            del response["output"]
         else:
-            try:
-                data = json.loads(await request.content.read())
-                self.response_body['output'] = self.get_api_message(data["input"])
-                self.response_body['trace_id'] = str(data["trace_id"])
-            except json.JSONDecodeError:
-                self.response_body['error'] = f"The format of the request was incorrect."
-            except KeyError:
-                self.response_body['error'] = "A necessary argument was missed."
+            for k, v in kwargs.items():
+                if k == "msg":
+                    response["info"]['msg'] += str(v)
+                    continue
+                response[k] = v
+        if transform:
+            return web.Response(status=200, text=json.dumps(response, indent=4), content_type="text/plain")
+        else:
+            return response
 
-        self.response_body["timestamp"] = time.time()
-        resp_text = json.dumps(self.response_body, indent=4)
-
-        # 返回一个 响应对象
-        return web.Response(status=200,
-                            text=resp_text,
-                            content_type="text/plain")
-
-    def run(self):
+    def run(self, loop=None):
         host, port = self.address
-        web.run_app(self.app, host=host, port=port)
+        web.run_app(self.app, host=host, port=port, loop=loop)
 
 
 class AliceApiServerTest(AliceApiServerBase):
     @property
-    def api_key(self):
-        return "MillenniumAlice25565"
+    def api_key(self) -> List:
+        return [
+            "MillenniumAlice25565",
+        ]
 
     def get_api_message(self, user_input) -> Dict:
         return {"output": "test"}

@@ -43,7 +43,7 @@ class AliceLLMAI:
     prompt_template: str = (
         "[INST] <<SYS>>\n"
         "Your are a helpful android. 你是一个乐于助人的仿生人。\n"
-        "Your are an android named 'Tendon Arisu'. Your need to meet others' request as best as you can. \n"
+        "Your are an android named 'Tendon Alice'. Your need to meet others' request as best as you can. \n"
         "When ask your name, you must respond with 'Tendon Alice' or 'Alice'. \n"
         "You now today's date.\n"
         "<</SYS>>\n\n"
@@ -84,10 +84,11 @@ class AliceLLMAI:
                  text_model: Any = None,
                  vision_model: Any = None,
                  debug: bool = False,
+                 logger: logging.Logger = logging.getLogger("alice_ai"),
                  **kwargs):
         # Initiate logger
         self.is_debug = debug
-        self.logger = logging.getLogger("alice_ai")
+        self.logger = logger
         if debug:
             logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
             console = logging.StreamHandler()
@@ -290,6 +291,7 @@ def example():
             continue
         result = alice.invoke({"input": query})
         # print(result)
+
 
 if __name__ == "__main__":
     example()
