@@ -1,28 +1,25 @@
 import json
 import logging
 import os
-import sys
 import time
-from typing import Any, Union
 from pathlib import Path
+from typing import Any, Union
+
 from bigdl.llm import llm_convert
 from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
-from langchain.chains import ConversationChain, LLMMathChain, load_chain
-from langchain.memory import ConversationSummaryMemory, ConversationBufferMemory
+from langchain.chains import LLMMathChain
 from langchain.chains.base import Chain
 from langchain.prompts import PromptTemplate
 from langchain.text_splitter import CharacterTextSplitter
-from langchain_community.document_loaders import TextLoader
-from langchain_community.vectorstores.chroma import Chroma
+from langchain_community.vectorstores.faiss import FAISS
 from langchain_core.callbacks import CallbackManager
 from langchain_core.language_models import LLM
 from langchain_core.runnables import RunnableConfig
-from langchain.chains.question_answering import load_qa_chain
 from transformers import AutoTokenizer
 
+from util.chain import AliceConversationChain
 from util.llm import AliceEmbedding, AliceLLM
 from util.memory import ExtendedConversationBufferMemory
-from util.chain import AliceConversationChain
 
 
 class AliceLLMAI:
@@ -62,8 +59,8 @@ class AliceLLMAI:
     int_l: str = "4"
 
     current_chain: Chain
-    __conversation_chain: ConversationChain
-    __math_chain: LLMMathChain
+    __conversation_chain: Chain
+    __math_chain: Chain
 
     def convert_text_model(self, model_path):
         """Transform model to native formate."""
@@ -100,7 +97,8 @@ class AliceLLMAI:
         self.text_model_llm, self.text_embedding = self.init_text_model(path=text_model)
 
         # Initiate vectorstore
-        self.text_vector_store = self.init_vector_database()
+        self.text_vector_store = self.init_vector_database(embedding=self.text_embedding,
+                                                           data_file="./data/knowledge.txt")
 
         # Initiate prompt
         input_variables = ["memory", "input", "date"]
@@ -136,17 +134,17 @@ class AliceLLMAI:
         embedding = embedding or self.text_embedding
         data_file = data_file or self.data_file
 
-        loader = TextLoader(data_file)
-        try:
-            documents = loader.load()
-        except RuntimeError as e:
-            self.logger.error(f"Fail to initiate vectorstore.({e})")
-            return None
+        with open(data_file, encoding="utf-8") as f:
+            data = f.read()
 
         text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=0)
-        texts = text_splitter.split_documents(documents)
-        vectorstore = Chroma.from_documents(texts, embedding)
-        return vectorstore
+        texts = text_splitter.split_text(data)
+        db = FAISS.from_texts(
+            texts,
+            embedding,
+            metadatas=[{"source": str(i)} for i in range(len(texts))]).as_retriever()
+
+        return db
 
     def init_text_model(self, path, _jump: int = 0) -> tuple[LLM, Any]:
         def init_model(path_):
@@ -264,14 +262,14 @@ class AliceLLMAI:
     def invoke(self, input_: dict[str, Any],
                config_: RunnableConfig | None = None,
                complete: bool = False,
-               **kwargs: Any) -> dict[str, Any]:
+               **kwargs: Any) -> str:
 
-        in_ = {"date": time.strftime("%Y年%m月%d日")}
-        input_.update(in_)
-        if complete:
-            return self.current_chain.invoke(input_, config_, **kwargs)
-        else:
-            return self.current_chain.invoke(input_, config_, **kwargs)["response"]
+        docs = self.text_vector_store.get_relevant_documents(input_["input"])
+
+        input_["date"] = time.strftime("%Y年%m月%d日")
+
+        response = self.current_chain.invoke(input_, input_documents=docs)
+        return response["response"]
 
 
 def example():

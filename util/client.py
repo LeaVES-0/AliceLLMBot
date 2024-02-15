@@ -4,6 +4,7 @@ import pprint
 import requests
 import uuid
 
+
 def ask(input):
     kw = {
         'trace_id': uuid.uuid4().hex,
@@ -15,7 +16,7 @@ def ask(input):
     print("state_code:", response.status_code)
     pprint.pprint(json.loads(response.text))
 
+
 while True:
     ask_q = input("Q:")
     ask(ask_q)
-    

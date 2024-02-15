@@ -2,7 +2,8 @@ import os
 from logging import Logger, getLogger
 from typing import Any, Optional, List, Dict, Generator
 
-from bigdl.llm.models import Llama
+from bigdl.llm.ggml.model.llama import Llama
+from bigdl.llm.transformers import LlamaForCausalLM
 from langchain_core.callbacks import CallbackManagerForLLMRun
 from langchain_core.language_models import LLM
 from pydantic import root_validator
@@ -73,7 +74,7 @@ class AliceLLM(LLM):
             del values["n_gpu_layers"]
 
         try:
-            values["model"] = Llama(model_path, **model_kwargs)
+            values["model"] = Llama(model_path, embedding=True, **model_kwargs)
 
         except Exception as e:
             raise e

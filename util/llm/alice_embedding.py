@@ -1,8 +1,11 @@
-from typing import Any, Dict, List
+from logging import debug, info
+from typing import Any, Dict, List, Callable
+from bigdl.llm.models import Llama
+from bigdl.llm.langchain.embeddings import TransformersEmbeddings
 
 import numpy as np
+from chromadb import EmbeddingFunction, Documents
 from langchain.embeddings.base import Embeddings
-from langchain_core.language_models import LLM
 from pydantic import BaseModel, Extra
 
 
@@ -16,36 +19,26 @@ class AliceEmbedding(BaseModel, Embeddings):
 
     def __init__(self, model, tokenizer, **encode_kwargs):
         super().__init__()
-        self.model = model
+        self.model = model.model
         self.tokenizer = tokenizer
 
         self.encode_kwargs = encode_kwargs
 
-
     class Config:
         extra = Extra.forbid
-
-    def embed(self, texts: str, **_):
-        """Compute doc embeddings using a HuggingFace transformer models.
-        :param texts: The list of texts to embed.
-        :return st of embeddings, one for each text.
-        """
-        input_ids = self.tokenizer.encode(texts, return_tensors="pt")  # shape: [1, T]
-        embeddings = self.model(input_ids, return_dict=False)[0]  # shape: [1, T, N]
-        embeddings = embeddings.squeeze(0).detach().numpy()
-        embeddings = np.mean(embeddings, axis=0)
-        return embeddings
 
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
         """Compute doc embeddings using a HuggingFace transformer models.
         :param texts: The list of texts to embed.
         :return List of embeddings.
         """
-        texts = []
+        texts = texts if texts else []
+        doce = []
+
         for t in texts:
             t.replace("\n", " ")
-            texts.append(t)
-        embeddings = [self.embed(text, **self.encode_kwargs).tolist() for text in texts]
+            doce.append(t)
+        embeddings = [self.model.embed(doc) for doc in doce]
         return embeddings
 
     def embed_query(self, text: str) -> List[float]:
@@ -54,5 +47,16 @@ class AliceEmbedding(BaseModel, Embeddings):
         :return Embeddings for the text.
         """
         text = text.replace("\n", r" ")
-        embedding = self.embed(text, **self.encode_kwargs)
-        return embedding.tolist()
+        embedding = self.model.embed(text)
+        return embedding
+
+
+class AliceEmbeddingFunc(EmbeddingFunction):
+    embedding: Embeddings
+
+    def load(self, embedding: Embeddings):
+        self.embedding = embedding
+
+    def __call__(self, input_: Documents):
+        r = self.embedding.embed_documents(texts=input_)
+        return r
