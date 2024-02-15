@@ -1,2 +1,1 @@
 AliceLLMBot
-ver.ChatGLM
